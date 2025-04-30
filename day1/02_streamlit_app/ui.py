@@ -3,7 +3,7 @@ import streamlit as st
 import pandas as pd
 import time
 from database import save_to_db, get_chat_history, get_db_count, clear_db
-from llm import generate_response
+from llm import generate_batch_response
 from data import create_sample_evaluation_data
 from metrics import get_metrics_descriptions
 
@@ -11,12 +11,12 @@ from metrics import get_metrics_descriptions
 def display_chat_page(pipe):
     """チャットページのUIを表示する"""
     st.subheader("質問を入力してください")
-    user_question = st.text_area("質問", key="question_input", height=100, value=st.session_state.get("current_question", ""))
+    user_questions = st.text_area("質問", key="questions_input", height=100, value=st.session_state.get("current_questions", ""))
     submit_button = st.button("質問を送信")
 
     # セッション状態の初期化（安全のため）
-    if "current_question" not in st.session_state:
-        st.session_state.current_question = ""
+    if "current_questions" not in st.session_state:
+        st.session_state.current_questions = ""
     if "current_answer" not in st.session_state:
         st.session_state.current_answer = ""
     if "response_time" not in st.session_state:
@@ -25,32 +25,32 @@ def display_chat_page(pipe):
         st.session_state.feedback_given = False
 
     # 質問が送信された場合
-    if submit_button and user_question:
-        st.session_state.current_question = user_question
+    if submit_button and user_questions:
+        st.session_state.current_questions = user_questions
         st.session_state.current_answer = "" # 回答をリセット
         st.session_state.feedback_given = False # フィードバック状態もリセット
 
         with st.spinner("モデルが回答を生成中..."):
-            answer, response_time = generate_response(pipe, user_question)
+            answer, response_time = generate_batch_response(pipe, user_questions)
             st.session_state.current_answer = answer
             st.session_state.response_time = response_time
             # ここでrerunすると回答とフィードバックが一度に表示される
             st.rerun()
 
     # 回答が表示されるべきか判断 (質問があり、回答が生成済みで、まだフィードバックされていない)
-    if st.session_state.current_question and st.session_state.current_answer:
+    if st.session_state.current_questions and st.session_state.current_answer:
         st.subheader("回答:")
         st.markdown(st.session_state.current_answer) # Markdownで表示
         st.info(f"応答時間: {st.session_state.response_time:.2f}秒")
 
-        # フィードバックフォームを表示 (まだフィードバックされていない場合)
+        # フィードバックフォームを表示 (まだフィードバックされていなs
         if not st.session_state.feedback_given:
             display_feedback_form()
         else:
              # フィードバック送信済みの場合、次の質問を促すか、リセットする
              if st.button("次の質問へ"):
                   # 状態をリセット
-                  st.session_state.current_question = ""
+                  st.session_state.current_questions = ""
                   st.session_state.current_answer = ""
                   st.session_state.response_time = 0.0
                   st.session_state.feedback_given = False
@@ -76,7 +76,7 @@ def display_feedback_form():
                 combined_feedback += f": {feedback_comment}"
 
             save_to_db(
-                st.session_state.current_question,
+                st.session_state.current_questions,
                 st.session_state.current_answer,
                 combined_feedback,
                 correct_answer,
